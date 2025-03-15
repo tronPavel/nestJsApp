@@ -15,8 +15,8 @@ import { ChatModule } from '../chat/chat.module';
       { name: Thread.name, schema: ThreadSchema },
     ]),
     FileModule,
-    TasksModule, 
-    ChatModule, 
+    TasksModule, // Для TaskModel
+    ChatModule, // Для ChatModel
   ],
   controllers: [MessageController],
   providers: [MessageService],

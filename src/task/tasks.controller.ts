@@ -22,15 +22,16 @@ import { TaskDto } from './dto/task.dto';
 import { VerifiedUser } from '../auth/decarators/VerifiedUser.decarator';
 import { User } from '../users/users.schema';
 import { FilesInterceptor } from '@nestjs/platform-express';
+import { TaskModeratorGuard } from './guard/task-moderator.guard';
+import { TaskParticipantGuard } from './guard/task-participants.guard';
 
-import { RoomParticipantsGuard } from '../rooms/guard/room-participants.guard';
-import { RoomModeratorGuard } from '../rooms/guard/room-moderator.guard';
 
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')
 export class TasksController {
     constructor(private readonly taskService: TasksService) {}
 
+    @UseGuards(TaskParticipantGuard)
     @Get(':id')
     //@Param('id') id: string
     //TaskDto
@@ -39,11 +40,13 @@ export class TasksController {
     }
 
     @Delete(':id')
+    @UseGuards(TaskModeratorGuard, /*RoomModeratorGuard*/)
     async deleteTask(@Param('id') id: string) {
         return await this.taskService.delete(id);
     }
 
     @Post()
+    //@UseGuards(RoomParticipantsGuard)
     @UseInterceptors(FilesInterceptor('files', 10))
     @UsePipes(new ValidationPipe({ transform: true }))
     async createTask(
@@ -51,7 +54,11 @@ export class TasksController {
         @VerifiedUser() user: User,
         @UploadedFiles() files: Express.Multer.File[],
     ): Promise<TaskDto> {
-
+        //if (files.length && (!createTaskDto.fileTypes || createTaskDto.fileTypes.length !== files.length)) {
+        // if (createTaskDto.fileTypes.length !== files.length) {
+        //
+        //     throw new HttpException('fileTypes must match the number of files', HttpStatus.BAD_REQUEST);
+        // }
         console.log(createTaskDto);
 
         const task = await this.taskService.create(createTaskDto, user._id.toString(), files);
@@ -59,6 +66,7 @@ export class TasksController {
     }
 
     @Patch(':id')
+    @UseGuards(TaskModeratorGuard, /*RoomModeratorGuard*/)
     @UseInterceptors(FilesInterceptor('files', 10))
     @UsePipes(new ValidationPipe({ transform: true }))
     async updateTask(
@@ -66,7 +74,9 @@ export class TasksController {
         @Body() updateTaskDto: UpdateTaskDto,
         @UploadedFiles() files: Express.Multer.File[],
     ): Promise<TaskDto> {
-
+    /*    if (files.length && (!updateTaskDto.fileTypes || updateTaskDto.fileTypes.length !== files.length)) {
+            throw new HttpException('fileTypes must match the number of files', HttpStatus.BAD_REQUEST);
+        }*/
         const updatedTask = await this.taskService.update(id, updateTaskDto, files);
         return this.mapToTaskDto(updatedTask);
     }

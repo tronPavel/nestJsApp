@@ -85,4 +85,5 @@ export class RoomsService {
         .exec();
     return rooms as PopulatedRoom[];
   }
+  async delete(id: string): Promise<void> {}
 }
