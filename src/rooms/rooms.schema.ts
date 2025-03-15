@@ -20,6 +20,3 @@ export class Room extends Document{
 
 export const RoomSchema = SchemaFactory.createForClass(Room);
 
-// RoomSchema.index({ tasks: 1 });
-// RoomSchema.index({ moderator: 1 });
-// RoomSchema.index({ participants: 1 });
