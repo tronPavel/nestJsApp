@@ -15,3 +15,4 @@ export class Chat extends Document {
     threads: (Types.ObjectId | Thread)[];
 }
 
+export const ChatSchema = SchemaFactory.createForClass(Chat);

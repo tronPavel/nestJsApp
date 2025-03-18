@@ -3,6 +3,7 @@ import { InjectModel } from '@nestjs/mongoose';
 import { ClientSession, Model, Types } from 'mongoose';
 import { Chat } from './chat.schema';
 import { Thread } from '../threads/threads.schema';
+import { ChatHistoryDto } from './dto/ChatHistoryDto';
 
 
 @Injectable()
@@ -34,5 +35,21 @@ export class ChatService {
         this.logger.log(`Chat created: ${savedChat._id}`);
         return savedChat;
     }
-
+    async getChatHistory(id: string, chatHistoryDto: ChatHistoryDto): Promise<Thread[]> {
+        this.logger.log(`Fetching chat history for chat ${id}`);
+        const chat = await this.chatModel.findById(id).exec();
+        if (!chat) {
+            this.logger.error(`Chat ${id} not found`);
+            throw new NotFoundException('Chat not found');
+        }
+        const threads = await this.threadModel
+            .find({ chat: chat._id })
+            .limit(chatHistoryDto.limit)
+            .skip((chatHistoryDto.page - 1) * chatHistoryDto.limit)
+            .sort({ createdAt: -1 })
+            .populate('mainMessage')
+            .exec();
+        this.logger.log(`Retrieved ${threads.length} threads for chat ${id}`);
+        return threads;
+    }
 }

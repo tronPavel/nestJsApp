@@ -121,4 +121,13 @@ export class MessageService {
         };
         return populatedMessage;
     }
+    async getMessages(threadId: string, skip: number, limit: number): Promise<Message[]> {
+        return this.messageModel
+            .find({ thread: new Types.ObjectId(threadId) })
+            .skip(skip)
+            .limit(limit)
+            .populate('sender files')
+            .sort({ createdAt: 1 })
+            .exec();
+    }
 }
