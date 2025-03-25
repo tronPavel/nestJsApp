@@ -271,55 +271,10 @@ export class TasksService {
         };
     }
 
-    async deleteMany(taskIds: string[], session: ClientSession): Promise<void> {
-        const tasks = await this.getTasksByIds(taskIds, session);
-        if (tasks.length === 0) return;
-
-        await this.deleteTasksFiles(tasks, session);
-        await this.deleteTasksChats(tasks, session);
-        await this.deleteTasks(taskIds, session);
-    }
-
-    private async getTasksByIds(taskIds: string[], session: ClientSession): Promise<Task[]> {
-        return await this.taskModel
-            .find({ _id: { $in: taskIds } })
-            .session(session)
-            .populate('files chat')
-            .exec();
-    }
-
-    private async deleteTasksFiles(tasks: Task[], session: ClientSession): Promise<void> {
-        const fileIds = tasks.flatMap(task => task.files.map(file => new Types.ObjectId(file.id)));
-        if (fileIds.length > 0) {
-            await this.taskModel.db.model('File').bulkWrite(
-                fileIds.map(id => ({ deleteOne: { filter: { _id: id } } })),
-                { session }
-            );
-            await this.taskModel.db.collection('taskFiles.chunks').bulkWrite(
-                fileIds.map(id => ({ deleteMany: { filter: { files_id: id } } })),
-                { session }
-            );
-        }
-    }
-
-    private async deleteTasksChats(tasks: Task[], session: ClientSession): Promise<void> {
-        const chatIds = tasks.map(task => (task.chat as Chat)._id.toString());
-        for (const chatId of chatIds) {
-            await this.chatService.delete(chatId, session);
-        }
-    }
-
-    private async deleteTasks(taskIds: string[], session: ClientSession): Promise<void> {
-        await this.taskModel.deleteMany({ _id: { $in: taskIds } }, { session }).exec();
-    }
 
     async findById(id: string, session?: ClientSession): Promise<PopulatedTask> {
         const task = await this.fetchTaskById(id, session);
         return this.mapToPopulatedTask(task);
-    }
-
-    private async deleteTaskChat(task: PopulatedTask, session: ClientSession): Promise<void> {
-        await this.chatService.delete(task.chat, session);
     }
 
     private async fetchTaskById(id: string, session?: ClientSession): Promise<Task> {

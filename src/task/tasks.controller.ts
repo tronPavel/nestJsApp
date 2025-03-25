@@ -24,7 +24,9 @@ import { User } from '../users/users.schema';
 import { FilesInterceptor } from '@nestjs/platform-express';
 import { TaskModeratorGuard } from './guard/task-moderator.guard';
 import { TaskParticipantGuard } from './guard/task-participants.guard';
-
+//import { TaskFromGuard } from './decorators/task.decorator';
+import { RoomParticipantsGuard } from '../rooms/guard/room-participants.guard';
+import { RoomModeratorGuard } from '../rooms/guard/room-moderator.guard';
 
 @UseGuards(JwtAuthGuard)
 @Controller('tasks')
@@ -37,12 +39,6 @@ export class TasksController {
     //TaskDto
     async getTask(@Param('id') id: string): Promise<PopulatedTask> {
         return this.taskService.findById(id);
-    }
-
-    @Delete(':id')
-    @UseGuards(TaskModeratorGuard, /*RoomModeratorGuard*/)
-    async deleteTask(@Param('id') id: string) {
-        return await this.taskService.delete(id);
     }
 
     @Post()
