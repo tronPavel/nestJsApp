@@ -11,6 +11,7 @@ import { ThreadsModule } from './threads/threads.module';
 import { FileModule } from './files/file.module';
 import { MulterModule } from '@nestjs/platform-express';
 import * as multer from 'multer';
+import { RoomGateway } from './rooms/room.gateway';
 
 // @ts-ignore
 @Module({
@@ -34,6 +35,6 @@ import * as multer from 'multer';
     FileModule,
 
   ],
-  providers: [], 
+  providers: [RoomGateway], // Доступен для всех модулей
 })
 export class AppModule {}

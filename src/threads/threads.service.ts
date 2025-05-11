@@ -160,4 +160,43 @@ export class ThreadsService {
     return thread;
   }
 
+  async getMessages(threadId: string, historyDto: ThreadHistoryDto): Promise<Message[]> {
+    const thread = await this.threadModel.findById(threadId).exec();
+    if (!thread) {
+      throw new NotFoundException('Thread not found');
+    }
+    return await this.messageService.getMessages(
+        threadId,
+        (historyDto.page - 1) * historyDto.limit,
+        historyDto.limit
+    );
+  }
+
+  async delete(id: string): Promise<{ success: boolean }> {
+    this.logger.log(`Deleting thread ${id}`);
+    const session: ClientSession = await mongoose.startSession();
+    try {
+      let result;
+      await session.withTransaction(async () => {
+        const thread = await this.threadModel.findById(id).session(session).exec();
+        if (!thread) {
+          this.logger.error(`Thread ${id} not found`);
+          throw new NotFoundException('Thread not found');
+        }
+        await this.threadModel.deleteOne({ _id: id }, { session }).exec();
+        this.logger.log(`Thread deleted: ${id}`);
+        result = { success: true };
+      });
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to delete thread: ${error.message}`);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException(`Failed to delete thread: ${error.message}`);
+    } finally {
+      await session.endSession();
+      this.logger.log(`Session ended for thread ${id}`);
+    }
+  }
 }

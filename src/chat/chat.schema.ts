@@ -16,3 +16,18 @@ export class Chat extends Document {
 }
 
 export const ChatSchema = SchemaFactory.createForClass(Chat);
+
+ChatSchema.pre('deleteOne', { document: true, query: false }, async function (next) {
+    try {
+        const session = this.$session();
+        if (!session) {
+            logger.error('Session is required for Chat deletion');
+            throw new Error('Session is required for cascade deletion');
+        }
+        await this.model('Thread').deleteMany({ chat: this._id }, { session }).exec();
+        next();
+    } catch (error) {
+        logger.error(`Failed to delete chat: ${error.message}`);
+        next(error);
+    }
+});

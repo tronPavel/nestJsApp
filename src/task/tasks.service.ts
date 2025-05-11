@@ -271,10 +271,148 @@ export class TasksService {
         };
     }
 
+    async deleteMany(taskIds: string[], session: ClientSession): Promise<void> {
+        const tasks = await this.getTasksByIds(taskIds, session);
+        if (tasks.length === 0) return;
+
+        await this.deleteTasksFiles(tasks, session);
+        await this.deleteTasksChats(tasks, session);
+        await this.deleteTasks(taskIds, session);
+    }
+
+    private async getTasksByIds(taskIds: string[], session: ClientSession): Promise<Task[]> {
+        return await this.taskModel
+            .find({ _id: { $in: taskIds } })
+            .session(session)
+            .populate('files chat')
+            .exec();
+    }
+
+    private async deleteTasksFiles(tasks: Task[], session: ClientSession): Promise<void> {
+        const fileIds = tasks.flatMap(task => task.files.map(file => new Types.ObjectId(file.id)));
+        if (fileIds.length > 0) {
+            await this.taskModel.db.model('File').bulkWrite(
+                fileIds.map(id => ({ deleteOne: { filter: { _id: id } } })),
+                { session }
+            );
+            await this.taskModel.db.collection('taskFiles.chunks').bulkWrite(
+                fileIds.map(id => ({ deleteMany: { filter: { files_id: id } } })),
+                { session }
+            );
+        }
+    }
+
+    private async deleteTasksChats(tasks: Task[], session: ClientSession): Promise<void> {
+        const chatIds = tasks.map(task => (task.chat as Chat)._id.toString());
+        for (const chatId of chatIds) {
+            await this.chatService.delete(chatId, session);
+        }
+    }
+
+    private async deleteTasks(taskIds: string[], session: ClientSession): Promise<void> {
+        await this.taskModel.deleteMany({ _id: { $in: taskIds } }, { session }).exec();
+    }
+
+    async delete(id: string): Promise<{ success: boolean }> {
+        const session = await this.taskModel.db.startSession();
+        try {
+            let result;
+            await session.withTransaction(async () => {
+                const task = await this.getTaskById(id, session);
+                if (task.subTasks && task.subTasks.length > 0) {
+                    await this.transferSubTasks(task, session);
+                } else {
+                    await this.removeFromParentOrRoom(task, session);
+                }
+                await this.deleteTaskFiles(task, session);
+                await this.deleteTaskChat(task, session);
+                await this.taskModel.deleteOne({ _id: task._id }, { session }).exec();
+                result = { success: true };
+            });
+            return result;
+        } catch (error) {
+            if (error instanceof NotFoundException) throw error;
+            throw new BadRequestException(`Failed to delete task: ${error.message}`);
+        } finally {
+            session.endSession();
+        }
+    }
+
+    private async transferSubTasks(task: PopulatedTask, session: ClientSession): Promise<void> {
+        if (!task.subTasks || task.subTasks.length === 0) return;
+
+        if (task.parentTask) {
+            await this.taskModel.bulkWrite([
+                {
+                    updateOne: {
+                        filter: { _id: task.parentTask._id },
+                        update: {
+                            $pull: { subTasks: task._id },
+                            $addToSet: { subTasks: { $each: task.subTasks.map(sub => sub._id) } },
+                        },
+                    },
+                },
+                ...task.subTasks.map(subTask => ({
+                    updateOne: {
+                        filter: { _id: subTask._id },
+                        update: { $set: { parentTask: task.parentTask._id } },
+                    },
+                })),
+            ], { session });
+        } else {
+            await this.taskModel.bulkWrite(
+                task.subTasks.map(subTask => ({
+                    updateOne: {
+                        filter: { _id: subTask._id },
+                        update: { $unset: { parentTask: '' } },
+                    },
+                })),
+                { session }
+            );
+            await this.roomModel.updateOne(
+                { _id: task.room },
+                { $addToSet: { tasks: { $each: task.subTasks.map(sub => sub._id) } } },
+                { session }
+            ).exec();
+        }
+    }
+
+    private async removeFromParentOrRoom(task: PopulatedTask, session: ClientSession): Promise<void> {
+        if (task.parentTask) {
+            await this.taskModel.updateOne(
+                { _id: task.parentTask._id },
+                { $pull: { subTasks: task._id } },
+                { session }
+            ).exec();
+        } else {
+            await this.roomModel.updateOne(
+                { _id: task.room },
+                { $pull: { tasks: task._id } },
+                { session }
+            ).exec();
+        }
+    }
+
+    private async deleteTaskFiles(task: PopulatedTask, session: ClientSession): Promise<void> {
+        if (!task.files || task.files.length === 0) return;
+        const fileIds = task.files.map(file => new Types.ObjectId(file._id));
+        await this.taskModel.db.model('File').bulkWrite(
+            fileIds.map(id => ({ deleteOne: { filter: { _id: id } } })),
+            { session }
+        );
+        await this.taskModel.db.collection('taskFiles.chunks').bulkWrite(
+            fileIds.map(id => ({ deleteMany: { filter: { files_id: id } } })),
+            { session }
+        );
+    }
 
     async findById(id: string, session?: ClientSession): Promise<PopulatedTask> {
         const task = await this.fetchTaskById(id, session);
         return this.mapToPopulatedTask(task);
+    }
+
+    private async deleteTaskChat(task: PopulatedTask, session: ClientSession): Promise<void> {
+        await this.chatService.delete(task.chat, session);
     }
 
     private async fetchTaskById(id: string, session?: ClientSession): Promise<Task> {

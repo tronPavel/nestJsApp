@@ -85,5 +85,37 @@ export class RoomsService {
         .exec();
     return rooms as PopulatedRoom[];
   }
-  async delete(id: string): Promise<void> {}
+
+  async delete(id: string): Promise<void> {
+    this.logger.log(`Deleting room ${id}`);
+    const session: ClientSession = await mongoose.startSession();
+    try {
+      await session.withTransaction(async () => {
+        const room = await this.roomModel.findById(id).session(session).exec();
+        if (!room) {
+          this.logger.error(`Room ${id} not found`);
+          throw new NotFoundException('Room not found');
+        }
+
+        // Удаление всех задач
+        if (room.tasks && room.tasks.length > 0) {
+          const taskIds = room.tasks.map(task => task.toString());
+          await this.tasksService.deleteMany(taskIds, session);
+        }
+
+        // Удаление комнаты
+        await this.roomModel.deleteOne({ _id: id }, { session }).exec();
+        this.logger.log(`Room deleted: ${id}`);
+      });
+    } catch (error) {
+      this.logger.error(`Failed to delete room: ${error.message}`);
+      if (error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new HttpException(`Failed to delete room: ${error.message}`, HttpStatus.BAD_REQUEST);
+    } finally {
+      await session.endSession();
+      this.logger.log(`Session ended for room ${id}`);
+    }
+  }
 }

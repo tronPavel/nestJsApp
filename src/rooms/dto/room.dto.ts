@@ -1,9 +1,11 @@
 import {IsString, IsNotEmpty, ValidateNested, Validate} from 'class-validator';
 import { Type } from 'class-transformer';
+import {IsObjectIdConstraint} from "../../common/validator/is-object-id.validator";
 
 class ModeratorDto {
     @IsNotEmpty()
     @IsString()
+    @Validate(IsObjectIdConstraint)
     id: string;
 
     @IsNotEmpty()
@@ -14,6 +16,7 @@ class ModeratorDto {
 class ParticipantDto {
     @IsNotEmpty()
     @IsString()
+    @Validate(IsObjectIdConstraint)
     id: string;
 
     @IsNotEmpty()
@@ -24,6 +27,7 @@ class ParticipantDto {
 class TaskDto {
     @IsNotEmpty()
     @IsString()
+    @Validate(IsObjectIdConstraint)
     id: string;
 
     @IsNotEmpty()
@@ -34,6 +38,7 @@ class TaskDto {
 export class RoomDto {
     @IsNotEmpty()
     @IsString()
+    @Validate(IsObjectIdConstraint)
     id: string;
 
     @IsNotEmpty()

@@ -18,11 +18,13 @@ import { VerifiedUser } from '../auth/decarators/VerifiedUser.decarator';
 import { User } from '../users/users.schema';
 import {CreateRoomDto} from "./dto/create-room.dto";
 import {RoomDto} from "./dto/room.dto";
+//import {UpdateRoomDto} from "./dto/update-room.dto";
+import {AddParticipantDto} from "./dto/add-participant.dto";
 import {RoomModeratorGuard} from "./guard/room-moderator.guard";
 
 import { RoomFromGuard} from "./decorators/room.decorator";
 import {RoomParticipantsGuard} from "./guard/room-participants.guard";
-
+import {IdParamDto} from "../common/dto/id-param.dto";
 
 @UseGuards(JwtAuthGuard)
 @Controller('rooms')
@@ -69,6 +71,37 @@ export class RoomsController {
     console.log(room);
     return this.mapRoomToDto(room);
   }
+
+/*  @Patch('/:id')
+  @UseGuards(RoomModeratorGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async updateRoom(
+      @Param('id') { id }: IdParamDto,
+      @Body() updateRoomDto: UpdateRoomDto,
+  ): Promise<RoomDto> {
+    const updatedRoom = await this.roomsService.update(id, updateRoomDto);
+    return this.mapRoomToDto(updatedRoom);
+  }*/
+
+  @Post('/:id/participants')
+  @UseGuards(RoomModeratorGuard)
+  @UsePipes(new ValidationPipe({ transform: true }))
+  async addParticipant(
+      @Param('id') { id }: IdParamDto,
+      @Body() addParticipantDto: AddParticipantDto,
+  ): Promise<RoomDto> {
+    const participant = await this.usersService.getUser({ _id: addParticipantDto.userId });
+    if (!participant) {
+      throw new HttpException('User not found', HttpStatus.NOT_FOUND);
+    }
+    const room = (await this.roomsService.findById(id));
+    if (room.participants.some(p => p._id.toString() === participant._id.toString())) {
+      throw new HttpException('User already in room', HttpStatus.BAD_REQUEST);
+    }
+    const updatedRoom = await this.roomsService.addParticipant(id, participant._id.toString());
+    return this.mapRoomToDto(updatedRoom);
+  }
+
 
   @Delete(':id')
   @UseGuards(RoomModeratorGuard)

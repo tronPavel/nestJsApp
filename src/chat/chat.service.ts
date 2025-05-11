@@ -5,7 +5,6 @@ import { Chat } from './chat.schema';
 import { Thread } from '../threads/threads.schema';
 import { ChatHistoryDto } from './dto/ChatHistoryDto';
 
-
 @Injectable()
 export class ChatService {
     private readonly logger = new Logger(ChatService.name);
@@ -35,6 +34,7 @@ export class ChatService {
         this.logger.log(`Chat created: ${savedChat._id}`);
         return savedChat;
     }
+
     async getChatHistory(id: string, chatHistoryDto: ChatHistoryDto): Promise<Thread[]> {
         this.logger.log(`Fetching chat history for chat ${id}`);
         const chat = await this.chatModel.findById(id).exec();
@@ -51,5 +51,30 @@ export class ChatService {
             .exec();
         this.logger.log(`Retrieved ${threads.length} threads for chat ${id}`);
         return threads;
+    }
+
+    async delete(id: string, session?: ClientSession): Promise<void> {
+        this.logger.log(`Deleting chat ${id}`);
+        const localSession = session || (await this.chatModel.db.startSession());
+        try {
+            await localSession.withTransaction(async () => {
+                const chat = await this.chatModel.findById(id).session(localSession).exec();
+                if (!chat) {
+                    this.logger.error(`Chat ${id} not found`);
+                    throw new NotFoundException('Chat not found');
+                }
+                await this.chatModel.deleteOne({ _id: id }, { session: localSession }).exec();
+                // Pre-хук удалит связанные треды
+            });
+            this.logger.log(`Chat deleted: ${id}`);
+        } catch (error) {
+            this.logger.error(`Transaction failed: ${error.message}`);
+            throw new HttpException(`Transaction failed: ${error.message}`, HttpStatus.BAD_REQUEST);
+        } finally {
+            if (!session) {
+                localSession.endSession();
+                this.logger.log('Session ended');
+            }
+        }
     }
 }

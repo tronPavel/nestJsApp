@@ -5,6 +5,7 @@ import { Message } from './message.schema';
 import { FileService } from '../files/file.service';
 import { CreateMessageDto } from './dto/create-message.dto';
 import { Thread } from '../threads/threads.schema';
+import { UpdateMessageDto } from './dto/update-message.dto';
 
 export interface PopulatedMessage {
     _id: string;
@@ -90,6 +91,38 @@ export class MessageService {
         return this.findById(savedMessage._id.toString(), session);
     }
 
+
+// messages.service.ts
+    async update(id: string, dto: UpdateMessageDto, session?: ClientSession): Promise<PopulatedMessage> {
+        const message = await this.messageModel.findById(id).session(session).exec();
+        if (!message) throw new NotFoundException('Message not found');
+        if (dto.content) message.content = dto.content;
+        if (dto.tags) message.tags = dto.tags;
+        await message.save({ session });
+        return this.findById(id, session);
+    }
+
+    async delete(id: string, session?: ClientSession): Promise<{ success: boolean }> {
+        const localSession = session || await mongoose.startSession();
+        try {
+            await localSession.withTransaction(async () => {
+                const message = await this.messageModel.findById(id).session(localSession).exec();
+                if (!message) throw new NotFoundException('Message not found');
+                await this.messageModel.deleteOne({ _id: id }, { session: localSession }).exec();
+                await this.threadModel.updateOne(
+                    { replies: new Types.ObjectId(id) },
+                    { $pull: { replies: new Types.ObjectId(id) } },
+                    { session: localSession }
+                ).exec();
+            });
+            return { success: true };
+        } catch (error) {
+            throw error instanceof NotFoundException ? error : new BadRequestException(`Failed to delete message: ${error.message}`);
+        } finally {
+            if (!session) localSession.endSession();
+        }
+    }
+
     async findById(id: string, session?: ClientSession): Promise<PopulatedMessage> {
         const query = this.messageModel
             .findById(id)
@@ -121,6 +154,43 @@ export class MessageService {
         };
         return populatedMessage;
     }
+
+  /*  async delete(id: string): Promise<{ success: boolean }> {
+        this.logger.log(`Deleting message ${id}`);
+        const session: ClientSession = await mongoose.startSession();
+        try {
+            let result;
+            await session.withTransaction(async () => {
+                const message = await this.messageModel.findById(id).session(session).exec();
+                if (!message) {
+                    this.logger.error(`Message ${id} not found`);
+                    throw new NotFoundException('Message not found');
+                }
+
+                await this.messageModel.deleteOne({ _id: id }, { session }).exec();
+
+                await this.threadModel.updateOne(
+                    { replies: new Types.ObjectId(id) },
+                    { $pull: { replies: new Types.ObjectId(id) } },
+                    { session }
+                ).exec();
+
+                this.logger.log(`Message deleted: ${id}`);
+                result = { success: true };
+            });
+            return result;
+        } catch (error) {
+            this.logger.error(`Failed to delete message: ${error.message}`);
+            if (error instanceof NotFoundException) {
+                throw error;
+            }
+            throw new BadRequestException(`Failed to delete message: ${error.message}`);
+        } finally {
+            await session.endSession();
+            this.logger.log(`Session ended for message ${id}`);
+        }
+    }*/
+
     async getMessages(threadId: string, skip: number, limit: number): Promise<Message[]> {
         return this.messageModel
             .find({ thread: new Types.ObjectId(threadId) })

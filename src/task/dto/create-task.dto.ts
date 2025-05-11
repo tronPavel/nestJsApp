@@ -1,4 +1,5 @@
 import { IsArray, IsNotEmpty, IsOptional, IsString, Validate } from 'class-validator';
+import { IsObjectIdConstraint } from '../../common/validator/is-object-id.validator';
 
 export class CreateTaskDto {
     @IsString()
@@ -16,9 +17,11 @@ export class CreateTaskDto {
 
     @IsString()
     @IsNotEmpty()
+    @Validate(IsObjectIdConstraint)
     roomId: string;
 
     @IsString()
     @IsOptional()
+    @Validate(IsObjectIdConstraint)
     parentTaskId?: string;
 }

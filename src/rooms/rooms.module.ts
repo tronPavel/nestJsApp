@@ -8,6 +8,7 @@ import {ChatModule} from "../chat/chat.module";
 import {RoomParticipantsGuard} from "./guard/room-participants.guard";
 import {RoomModeratorGuard} from "./guard/room-moderator.guard";
 import {UsersModule} from "../users/users.module";
+import {RoomGateway} from "./room.gateway";
 import {JwtService} from "@nestjs/jwt";
 import {ThreadsModule} from "../threads/threads.module";
 import {MessagesModule} from "../messages/messages.module";
@@ -32,7 +33,7 @@ import {AuthModule} from "../auth/auth.module";
   providers: [RoomsService,
     RoomParticipantsGuard,
     RoomModeratorGuard,
-    ],
+    RoomGateway],
   exports: [RoomsService],
   //, MongooseModule.forFeature([{name: Room.name,  schema: RoomSchema}])
 })

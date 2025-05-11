@@ -18,6 +18,7 @@ import { CreateThreadDto } from '../threads/dto/create-thread.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Chat } from '../chat/chat.schema';
 import { Model, ClientSession } from 'mongoose';
+import { UpdateMessageDto } from '../messages/dto/update-message.dto';
 
 @WebSocketGateway({ cors: {
         origin: '*', // Разрешить все домены (для теста)
@@ -142,6 +143,55 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
                 .emit('newThreadNotification', { chatId: data.chatId });
         } catch (error) {
             client.emit('error', `Failed to send thread: ${error.message}`);
+        } finally {
+            if (session) session.endSession();
+        }
+    }
+
+    @SubscribeMessage('updateMessage')
+    async handleUpdateMessage(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { messageId: string; update: UpdateMessageDto }
+    ) {
+        if (!(await this.checkMessageAuthor(client.data.userId, data.messageId))) {
+            client.emit('error', 'Forbidden');
+            return;
+        }
+        let session: ClientSession | null = null;
+        try {
+            session = await this.chatModel.db.startSession();
+            const res = await this.messageService.update(data.messageId, data.update, session);
+            const chat = await this.chatModel.findOne({ threads: { $in: res.thread } }).exec(); // Найти чат по thread
+            if (chat) {
+                this.server.to(`chat:${chat._id.toString()}`).emit('messageUpdated', { message: res, chatId: chat._id.toString() });
+            }
+        } catch (error) {
+            client.emit('error', `Failed to update message: ${error.message}`);
+        } finally {
+            if (session) session.endSession();
+        }
+    }
+
+    @SubscribeMessage('deleteMessage')
+    async handleDeleteMessage(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() messageId: string
+    ) {
+        if (!(await this.checkMessageAuthor(client.data.userId, messageId))) {
+            client.emit('error', 'Forbidden');
+            return;
+        }
+        let session: ClientSession | null = null;
+        try {
+            session = await this.chatModel.db.startSession();
+            const message = await this.messageService.findById(messageId, session);
+            await this.messageService.delete(messageId, session);
+            const chat = await this.chatModel.findOne({ threads: { $in: message.thread } }).exec();
+            if (chat) {
+                this.server.to(`chat:${chat._id.toString()}`).emit('messageDeleted', { messageId, chatId: chat._id.toString() });
+            }
+        } catch (error) {
+            client.emit('error', `Failed to delete message: ${error.message}`);
         } finally {
             if (session) session.endSession();
         }

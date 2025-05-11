@@ -41,6 +41,12 @@ export class TasksController {
         return this.taskService.findById(id);
     }
 
+    @Delete(':id')
+    @UseGuards(TaskModeratorGuard, /*RoomModeratorGuard*/)
+    async deleteTask(@Param('id') id: string) {
+        return await this.taskService.delete(id);
+    }
+
     @Post()
     //@UseGuards(RoomParticipantsGuard)
     @UseInterceptors(FilesInterceptor('files', 10))
