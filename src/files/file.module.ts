@@ -10,7 +10,7 @@ import {ChatModule} from "../chat/chat.module";
     imports: [
         MongooseModule.forFeature([{ name: File.name, schema: FileSchema }]),
         forwardRef(() => TasksModule),
-        ChatModule// TaskParticipantGuard в контроллере задач
+        ChatModule
     ],
     providers: [FileService],
     controllers: [FileController],

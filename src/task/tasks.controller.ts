@@ -12,7 +12,7 @@ import {
     UsePipes,
     ValidationPipe,
     UseInterceptors,
-    UploadedFiles,
+    UploadedFiles, Req,
 } from '@nestjs/common';
 import { PopulatedTask, TasksService } from './tasks.service';
 import { CreateTaskDto } from './dto/create-task.dto';
@@ -21,10 +21,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { TaskDto } from './dto/task.dto';
 import { VerifiedUser } from '../auth/decarators/VerifiedUser.decarator';
 import { User } from '../users/users.schema';
-import { FilesInterceptor } from '@nestjs/platform-express';
+import {AnyFilesInterceptor, FilesInterceptor} from '@nestjs/platform-express';
 import { TaskModeratorGuard } from './guard/task-moderator.guard';
 import { TaskParticipantGuard } from './guard/task-participants.guard';
-//import { TaskFromGuard } from './decorators/task.decorator';
 import { RoomParticipantsGuard } from '../rooms/guard/room-participants.guard';
 import { RoomModeratorGuard } from '../rooms/guard/room-moderator.guard';
 
@@ -35,40 +34,38 @@ export class TasksController {
 
     @UseGuards(TaskParticipantGuard)
     @Get(':id')
-    //@Param('id') id: string
-    //TaskDto
     async getTask(@Param('id') id: string): Promise<PopulatedTask> {
         return this.taskService.findById(id);
     }
 
     @Delete(':id')
-    @UseGuards(TaskModeratorGuard, /*RoomModeratorGuard*/)
+    @UseGuards(TaskModeratorGuard, RoomModeratorGuard)
     async deleteTask(@Param('id') id: string) {
         return await this.taskService.delete(id);
     }
 
-    @Post()
-    //@UseGuards(RoomParticipantsGuard)
+    @Post(':roomId')
     @UseInterceptors(FilesInterceptor('files', 10))
+    @UseGuards(RoomParticipantsGuard)
     @UsePipes(new ValidationPipe({ transform: true }))
     async createTask(
-        @Body() createTaskDto: CreateTaskDto,
+        @Param('roomId') roomId: string,
+        @Body() body: any,
         @VerifiedUser() user: User,
         @UploadedFiles() files: Express.Multer.File[],
     ): Promise<TaskDto> {
-        //if (files.length && (!createTaskDto.fileTypes || createTaskDto.fileTypes.length !== files.length)) {
-        // if (createTaskDto.fileTypes.length !== files.length) {
-        //
-        //     throw new HttpException('fileTypes must match the number of files', HttpStatus.BAD_REQUEST);
-        // }
-        console.log(createTaskDto);
+        const createTaskDto: CreateTaskDto = {
+            ...body,
+            roomId,
+        };
 
         const task = await this.taskService.create(createTaskDto, user._id.toString(), files);
         return this.mapToTaskDto(task);
     }
 
+
     @Patch(':id')
-    @UseGuards(TaskModeratorGuard, /*RoomModeratorGuard*/)
+    @UseGuards(TaskModeratorGuard)
     @UseInterceptors(FilesInterceptor('files', 10))
     @UsePipes(new ValidationPipe({ transform: true }))
     async updateTask(
@@ -76,9 +73,6 @@ export class TasksController {
         @Body() updateTaskDto: UpdateTaskDto,
         @UploadedFiles() files: Express.Multer.File[],
     ): Promise<TaskDto> {
-    /*    if (files.length && (!updateTaskDto.fileTypes || updateTaskDto.fileTypes.length !== files.length)) {
-            throw new HttpException('fileTypes must match the number of files', HttpStatus.BAD_REQUEST);
-        }*/
         const updatedTask = await this.taskService.update(id, updateTaskDto, files);
         return this.mapToTaskDto(updatedTask);
     }

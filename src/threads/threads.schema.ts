@@ -53,7 +53,6 @@ ThreadSchema.pre('deleteMany', { query: true }, async function (next) {
         const threads = await this.model.find(this.getFilter()).session(session).exec();
         const messageIds = threads.flatMap(doc => [doc.mainMessage, ...doc.replies]);
         await this.model.db.model('Message').deleteMany({ _id: { $in: messageIds } }, { session }).exec();
-        // Не обновляем Chat.threads, так как чат удаляется
         next();
     } catch (error) {
         logger.error(`Failed to delete threads: ${error.message}`);

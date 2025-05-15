@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import * as cookieParser from 'cookie-parser';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import * as express from 'express';
+import * as multer from 'multer';
 
 async function bootstrap() {
     const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -18,6 +19,5 @@ async function bootstrap() {
     });
 
     await app.listen(3000);
-    console.log(`Application is running on: http://localhost:3000`);
 }
 bootstrap();

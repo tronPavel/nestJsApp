@@ -33,7 +33,6 @@ import { RoomGateway } from './rooms/room.gateway';
     ChatModule,
     ThreadsModule,
     FileModule,
-
   ],
   providers: [RoomGateway], // Доступен для всех модулей
 })

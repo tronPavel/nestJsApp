@@ -1,27 +1,3 @@
-/*
-import { CanActivate, ExecutionContext, HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import { TasksService } from '../tasks.service';
-
-@Injectable()
-export class TaskParticipantGuard implements CanActivate {
-    constructor(private readonly taskService: TasksService) {}
-
-    async canActivate(context: ExecutionContext): Promise<boolean> {
-        const req = context.switchToHttp().getRequest();
-        const user = req.user;
-        const taskId = req.params.id;
-
-        const task = await this.taskService.findById(taskId);
-
-        if (!task.participants.some(p => p._id.toString() === user._id.toString())) {
-            throw new HttpException('Forbidden', HttpStatus.FORBIDDEN);
-        }
-
-        req.task = task;
-        return true;
-    }
-}*/
-// src/tasks/guards/task-participant.guard.ts
 import {
     Injectable,
     CanActivate,

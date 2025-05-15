@@ -1,27 +1,3 @@
-/*
-import { Injectable, CanActivate, ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
-import { TasksService } from '../tasks.service';
-
-@Injectable()
-export class TaskModeratorGuard implements CanActivate {
-    constructor(private readonly tasksService: TasksService) {}
-
-    async canActivate(context: ExecutionContext): Promise<boolean> {
-        const request = context.switchToHttp().getRequest();
-        const user = request.user;
-        const taskId = request.params.id;
-
-        const task = await this.tasksService.findById(taskId);
-
-        if (task.moderator._id.toString() !== user._id.toString()) {
-            throw new HttpException('Only moderator allowed', HttpStatus.FORBIDDEN);
-        }
-
-        request.task = task;
-        return true;
-    }
-}*/
-// src/tasks/guards/task-moderator.guard.ts
 import {
     Injectable,
     CanActivate,
@@ -60,6 +36,6 @@ export class TaskModeratorGuard implements CanActivate {
             throw new HttpException('Only moderator allowed', HttpStatus.FORBIDDEN);
         }
 
-        return true; // Убрали req.task
+        return true;
     }
 }

@@ -1,4 +1,4 @@
-import {HttpException, HttpStatus, Injectable, Logger, NotFoundException} from '@nestjs/common';
+import {BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException} from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import mongoose, { ClientSession, Model, Types } from 'mongoose';
 import { Room } from './rooms.schema';
@@ -35,6 +35,9 @@ export class RoomsService {
   }
 
   async findById(id: string): Promise<PopulatedRoom> {
+    if (!Types.ObjectId.isValid(id)) {
+      throw new BadRequestException('Invalid room ID');
+    }
     const room = await this.roomModel
         .findById(id)
         .populate('moderator participants tasks')

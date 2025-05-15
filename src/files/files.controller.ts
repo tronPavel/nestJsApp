@@ -23,26 +23,6 @@ import {ChatAccessGuard} from "../chat/guards/chat-access.guard";
 export class FileController {
     constructor(private readonly fileService: FileService) {}
 
-  /*  @Post('upload')
-/!*    @UseInterceptors(FilesInterceptor('files', 10, {
-        limits: { fileSize: 10 * 1024 * 1024 }, // 10 МБ
-        preservePath: true, // Важно для совместимости с текстовыми полями
-    }))*!/
-    @UseInterceptors(AnyFilesInterceptor())
-    @UsePipes(new ValidationPipe({ transform: true }))
-    async uploadFiles(
-        @UploadedFiles() files: Express.Multer.File[],
-       @Body() body: { chatId: string } // Получаем весь body
-    ) {
-        if (!files || files.length === 0) {
-            throw new BadRequestException('No files uploaded');
-        }
-
-        const fileIds = await Promise.all(
-            files.map(file => this.fileService.uploadFile(file))
-        );
-        return { fileIds };
-    }*/
     @Post('upload/:chatId')
     @UseInterceptors(FilesInterceptor('files', 10))
     async uploadFiles(

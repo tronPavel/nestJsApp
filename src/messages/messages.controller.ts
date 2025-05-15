@@ -24,26 +24,4 @@ import {ChatAccessGuard} from "../chat/guards/chat-access.guard";
 export class MessageController {
   constructor(private messageService: MessageService) {}
 
-  /*@Post()
-  @UseInterceptors(FilesInterceptor('files', 10))
-  @UsePipes(new ValidationPipe({ transform: true }))
-  async createMessage(@Body() dto: CreateMessageDto, @UploadedFiles() files: Express.Multer.File[], @Request() req) {
-    if (files?.length > 10) {
-      throw new BadRequestException('Too many files (max 10)');
-    }
-    const userId = req.user.sub; // Предполагается, что JWT содержит sub с ID пользователя
-    return this.messageService.create(dto, userId, files);
-  }
-  @Patch(':id')
-  async updateMessage(
-      @Param('id') id: string,
-      @Body() updateMessageDto: UpdateMessageDto,
-  ) {
-    return this.messageService.update(id, updateMessageDto);
-  }
-  @UseGuards(MessageAuthorGuard)
-  @Delete(':id')
-  async deleteMessage(@Param('id') id: string) {
-    return await this.messageService.delete(id);
-  }*/
 }

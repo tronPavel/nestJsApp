@@ -28,7 +28,6 @@ export const MessageSchema = SchemaFactory.createForClass(Message);
 
 MessageSchema.index({ thread: 1 });
 
-// Общая функция для обработки удаления сообщений
 async function handleMessageDeletion(query: any, documents: any[], session: ClientSession | null, next: (err?: any) => void) {
     try {
         if (!session) {
@@ -57,12 +56,10 @@ async function handleMessageDeletion(query: any, documents: any[], session: Clie
     }
 }
 
-// Pre-хук для удаления одного сообщения
 MessageSchema.pre('deleteOne', { document: true, query: false }, async function (next) {
     await handleMessageDeletion(this, [this], this.$session(), next);
 });
 
-// Pre-хук для deleteMany
 MessageSchema.pre('deleteMany', { query: true }, async function (next) {
     const session = this.getOptions().session || null;
     const messages = await this.model.find(this.getFilter()).session(session).exec();

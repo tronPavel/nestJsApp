@@ -68,20 +68,8 @@ export class RoomsController {
   async getRoom(
       @RoomFromGuard() room: PopulatedRoom,
   ): Promise<RoomDto> {
-    console.log(room);
     return this.mapRoomToDto(room);
   }
-
-/*  @Patch('/:id')
-  @UseGuards(RoomModeratorGuard)
-  @UsePipes(new ValidationPipe({ transform: true }))
-  async updateRoom(
-      @Param('id') { id }: IdParamDto,
-      @Body() updateRoomDto: UpdateRoomDto,
-  ): Promise<RoomDto> {
-    const updatedRoom = await this.roomsService.update(id, updateRoomDto);
-    return this.mapRoomToDto(updatedRoom);
-  }*/
 
   @Post('/:id/participants')
   @UseGuards(RoomModeratorGuard)

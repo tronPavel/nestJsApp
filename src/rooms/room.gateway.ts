@@ -17,25 +17,29 @@ import { MessageService } from '../messages/messages.service';
 import { CreateThreadDto } from '../threads/dto/create-thread.dto';
 import { InjectModel } from '@nestjs/mongoose';
 import { Chat } from '../chat/chat.schema';
-import { Model, ClientSession } from 'mongoose';
+import { Model, ClientSession, Types } from 'mongoose';
 import { UpdateMessageDto } from '../messages/dto/update-message.dto';
+import { UpdateThreadDto } from '../threads/dto/update-thread.dto';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 
-@WebSocketGateway({ cors: {
+@WebSocketGateway({
+    cors: {
         origin: '*', // Разрешить все домены (для теста)
         credentials: true,
     },
-    namespace: '/ws',})
+    namespace: '/ws',
+})
 export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
+    @WebSocketServer() server: Server;
+
     constructor(
         @InjectModel(Chat.name) private chatModel: Model<Chat>,
         private readonly jwtService: JwtService,
         private readonly roomService: RoomsService,
         private readonly taskService: TasksService,
         private readonly threadService: ThreadsService,
-        private readonly messageService: MessageService
+        private readonly messageService: MessageService,
     ) {}
-
-    @WebSocketServer() server: Server;
 
     async handleConnection(@ConnectedSocket() client: Socket) {
         console.log('New WebSocket connection:', client.handshake.url);
@@ -43,10 +47,9 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
         try {
             const payload = this.jwtService.verify(token);
             client.data.userId = payload.sub;
-            console.log('✅ User connected:', payload.sub);
         } catch (error) {
-            console.error('❌ Invalid token:', error.message);
-            client.disconnect(true); // Принудительное отключение
+            client.disconnect(true);
+            console.error('Invalid token:', error.message);
         }
     }
 
@@ -59,56 +62,62 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     @SubscribeMessage('joinRoom')
-    async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() roomId: string) {
+    async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string }) {
+        const roomId = data.roomId;
+        if (!roomId) {
+            client.emit('error', { message: 'Room ID is required' });
+            return;
+        }
+
         if (!(await this.checkRoomAccess(client.data.userId, roomId))) {
-            client.emit('error', 'Forbidden');
+            client.emit('error', { message: 'Forbidden' });
             return;
         }
         client.join(`room:${roomId}`);
         client.data.roomId = roomId;
         this.server.to(`room:${roomId}`).emit('userOnline', { userId: client.data.userId });
-        client.emit('joinRoom', { roomId });
+        client.emit('joinRoom', { roomId, success: true });
     }
-
     @SubscribeMessage('joinChat')
     async handleJoinChat(@ConnectedSocket() client: Socket, @MessageBody() chatId: string) {
         if (!(await this.checkChatAccess(client.data.userId, chatId))) {
-            client.emit('error', 'Forbidden');
+            client.emit('error', { message: 'Forbidden' });
             return;
         }
         client.join(`chat:${chatId}`);
-        client.emit('joinedChat', { chatId });
+        client.emit('joinedChat', { chatId, success: true });
     }
 
     @SubscribeMessage('sendMessage')
     async handleSendMessage(
         @ConnectedSocket() client: Socket,
-        @MessageBody() data: { chatId: string; message: CreateMessageDto }
+        @MessageBody() data: { chatId: string; message: CreateMessageDto },
     ) {
         if (!(await this.checkChatAccess(client.data.userId, data.chatId))) {
-            client.emit('error', 'Forbidden');
+            client.emit('error', { message: 'Forbidden' });
             return;
         }
         const chat = await this.chatModel.findById(data.chatId).exec();
         if (!chat) {
-            client.emit('error', 'Chat not found');
+            client.emit('error', { message: 'Chat not found' });
             return;
         }
 
         let session: ClientSession | null = null;
         try {
             session = await this.chatModel.db.startSession();
-            let res;
+            let message;
             await session.withTransaction(async () => {
-                res = await this.messageService.create(data.message, client.data.userId, session);
+                message = await this.messageService.create(data.message, client.data.userId, session);
             });
-            this.server.to(`chat:${data.chatId}`).emit('createMessage', { message: res, chatId: data.chatId });
+            this.server.to(`chat:${data.chatId}`).emit('createMessage', { message, chatId: data.chatId });
             const task = await this.taskService.findById(chat.task.toString());
             this.server
                 .to(`room:${task.room.toString()}`)
                 .emit('newMessageNotification', { chatId: data.chatId, threadId: data.message.threadId });
+            client.emit('sendMessageSuccess', { message, success: true });
         } catch (error) {
-            client.emit('error', `Failed to send message: ${error.message}`);
+            client.emit('error', { message: `Failed to send message: ${error.message}` });
         } finally {
             if (session) session.endSession();
         }
@@ -117,32 +126,31 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @SubscribeMessage('sendThread')
     async handleSendThread(
         @ConnectedSocket() client: Socket,
-        @MessageBody() data: { chatId: string; message: CreateThreadDto }
+        @MessageBody() data: { chatId: string; message: CreateThreadDto },
     ) {
         if (!(await this.checkChatAccess(client.data.userId, data.chatId))) {
-            client.emit('error', 'Forbidden');
+            client.emit('error', { message: 'Forbidden' });
             return;
         }
         const chat = await this.chatModel.findById(data.chatId).exec();
         if (!chat) {
-            client.emit('error', 'Chat not found');
+            client.emit('error', { message: 'Chat not found' });
             return;
         }
 
         let session: ClientSession | null = null;
         try {
             session = await this.chatModel.db.startSession();
-            let res;
+            let thread;
             await session.withTransaction(async () => {
-                res = await this.threadService.create(data.message, client.data.userId, session);
+                thread = await this.threadService.create(data.message, client.data.userId, session);
             });
-            this.server.to(`chat:${data.chatId}`).emit('threadMessage', { thread: res, chatId: data.chatId });
+            this.server.to(`chat:${data.chatId}`).emit('threadMessage', { thread, chatId: data.chatId });
             const task = await this.taskService.findById(chat.task.toString());
-            this.server
-                .to(`room:${task.room.toString()}`)
-                .emit('newThreadNotification', { chatId: data.chatId });
+            this.server.to(`room:${task.room.toString()}`).emit('newThreadNotification', { chatId: data.chatId });
+            client.emit('sendThreadSuccess', { thread, success: true });
         } catch (error) {
-            client.emit('error', `Failed to send thread: ${error.message}`);
+            client.emit('error', { message: `Failed to send thread: ${error.message}` });
         } finally {
             if (session) session.endSession();
         }
@@ -157,21 +165,29 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.emit('error', 'Forbidden');
             return;
         }
+
         let session: ClientSession | null = null;
         try {
             session = await this.chatModel.db.startSession();
-            const res = await this.messageService.update(data.messageId, data.update, session);
-            const chat = await this.chatModel.findOne({ threads: { $in: res.thread } }).exec(); // Найти чат по thread
-            if (chat) {
-                this.server.to(`chat:${chat._id.toString()}`).emit('messageUpdated', { message: res, chatId: chat._id.toString() });
-            }
+            let updatedMessage;
+            await session.withTransaction(async () => {
+                updatedMessage = await this.messageService.update(data.messageId, data.update, session);
+            });
+
+            const message = await this.messageService.findById(data.messageId);
+            const thread = await this.threadService.findById(message.thread);
+            const chatId = thread.chat.toString();
+
+            this.server.to(`chat:${chatId}`).emit('messageUpdated', {
+                message: updatedMessage,
+                chatId
+            });
         } catch (error) {
             client.emit('error', `Failed to update message: ${error.message}`);
         } finally {
             if (session) session.endSession();
         }
     }
-
     @SubscribeMessage('deleteMessage')
     async handleDeleteMessage(
         @ConnectedSocket() client: Socket,
@@ -181,24 +197,88 @@ export class RoomGateway implements OnGatewayConnection, OnGatewayDisconnect {
             client.emit('error', 'Forbidden');
             return;
         }
+
         let session: ClientSession | null = null;
         try {
             session = await this.chatModel.db.startSession();
-            const message = await this.messageService.findById(messageId, session);
-            await this.messageService.delete(messageId, session);
-            const chat = await this.chatModel.findOne({ threads: { $in: message.thread } }).exec();
-            if (chat) {
-                this.server.to(`chat:${chat._id.toString()}`).emit('messageDeleted', { messageId, chatId: chat._id.toString() });
-            }
+            await session.withTransaction(async () => {
+                await this.messageService.delete(messageId, session);
+            });
+
+            const message = await this.messageService.findById(messageId);
+            const thread = await this.threadService.findById(message.thread);
+            const chatId = thread.chat.toString();
+
+            this.server.to(`chat:${chatId}`).emit('messageDeleted', {
+                messageId,
+                chatId
+            });
         } catch (error) {
             client.emit('error', `Failed to delete message: ${error.message}`);
         } finally {
             if (session) session.endSession();
         }
     }
+    @SubscribeMessage('updateThread')
+    async handleUpdateThread(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() data: { threadId: string; update: UpdateThreadDto }
+    ) {
+        const thread = await this.threadService.findById(data.threadId);
+        const mainMessage = await this.messageService.findById(thread.mainMessage.toString());
+        if (mainMessage.sender.id !== client.data.userId) {
+            client.emit('error', 'Forbidden');
+            return;
+        }
 
+        let session: ClientSession | null = null;
+        try {
+            session = await this.chatModel.db.startSession();
+            let updatedThread;
+            await session.withTransaction(async () => {
+                const messageUpdate: UpdateMessageDto = { content: data.update.mainMessage, tags: data.update.tags };
+                await this.messageService.update(mainMessage._id.toString(), messageUpdate, session);
+                updatedThread = await this.threadService.findById(data.threadId);
+            });
+
+            this.server.to(`chat:${thread.chat.toString()}`).emit('threadUpdated', {
+                thread: updatedThread,
+                chatId: thread.chat.toString()
+            });
+        } catch (error) {
+            client.emit('error', `Failed to update thread: ${error.message}`);
+        } finally {
+            if (session) session.endSession();
+        }
+    }
+    @SubscribeMessage('deleteThread')
+    async handleDeleteThread(
+        @ConnectedSocket() client: Socket,
+        @MessageBody() threadId: string
+    ) {
+        const thread = await this.threadService.findById(threadId);
+        const mainMessage = await this.messageService.findById(thread.mainMessage.toString());
+        if (mainMessage.sender.id !== client.data.userId) {
+            client.emit('error', 'Forbidden');
+            return;
+        }
+
+        let session: ClientSession | null = null;
+        try {
+            await this.threadService.delete(threadId, );
+
+            this.server.to(`chat:${thread.chat.toString()}`).emit('threadDeleted', {
+                threadId,
+                chatId: thread.chat.toString()
+            });
+        } catch (error) {
+            client.emit('error', `Failed to delete thread: ${error.message}`);
+        } finally {
+            if (session) session.endSession();
+        }
+    }
     private async checkChatAccess(userId: string, chatId: string): Promise<boolean> {
-        const chat = await this.chatModel.findById(chatId);
+        const chat = await this.chatModel.findById(chatId).exec();
         if (!chat) return false;
         const task = await this.taskService.findById(chat.task.toString());
         return task.participants.some((p) => p._id.toString() === userId);

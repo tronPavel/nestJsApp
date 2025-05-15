@@ -19,7 +19,6 @@ export class FileService {
     async uploadFile(file: Express.Multer.File, session?: ClientSession): Promise<string> {
         const type = this.determineFileType(file.mimetype);
 
-        // Допустимые MIME-типы
         const allowedTypes = {
             image: ['image/jpeg', 'image/png', 'image/gif'],
             video: ['video/mp4', 'video/mpeg', 'video/webm'],
@@ -39,7 +38,7 @@ export class FileService {
             throw new BadRequestException(`Unsupported file type: ${file.mimetype}`);
         }
 
-        const maxSize = 100 * 1024 * 1024; // 100 MB
+        const maxSize = 100 * 1024 * 1024;
         if (file.size > maxSize) {
             throw new BadRequestException(`File too large. Max size: ${maxSize / 1024 / 1024}MB`);
         }
@@ -47,7 +46,6 @@ export class FileService {
         const fileId = new Types.ObjectId();
         const uploadStream = this.bucket.openUploadStreamWithId(fileId, file.originalname);
 
-        // Используем stream, если доступен, иначе buffer
         await new Promise<void>((resolve, reject) => {
             const stream = file.stream || (file.buffer ? require('stream').Readable.from(file.buffer) : null);
             if (!stream) {

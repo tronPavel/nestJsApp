@@ -38,8 +38,6 @@ export class TasksService {
     ) {}
 
     async create(createTaskDto: CreateTaskDto, userId: string, files: Express.Multer.File[]): Promise<PopulatedTask> {
-        this.validateRoomId(createTaskDto.roomId);
-
         const session = await this.taskModel.db.startSession();
         try {
             let result: PopulatedTask;
@@ -47,17 +45,11 @@ export class TasksService {
                 const participants = await this.validateParticipants(createTaskDto.participants || [], userId);
                 const parentTask = await this.getParentTask(createTaskDto.parentTaskId, createTaskDto.roomId, session);
                 const chat = await this.createChat(session);
-                console.log(1)
                 const fileIds = await this.uploadFiles(files, session);
-                console.log(2)
                 const task = await this.createTaskEntity(createTaskDto, userId, participants, fileIds, chat._id as Types.ObjectId, parentTask?._id as Types.ObjectId, session);
-                console.log(3)
 
                 await this.linkTaskToChat(chat._id as Types.ObjectId, task._id as Types.ObjectId, session);
-                console.log(4)
-
                 await this.updateParentOrRoom(task, parentTask, createTaskDto.roomId, session);
-                console.log(5)
 
                 result = await this.findById(task._id.toString(), session);
             });
@@ -67,11 +59,6 @@ export class TasksService {
         } finally {
             await session.endSession();
         }
-    }
-
-    private validateRoomId(roomId: string): void {
-        if (!roomId) throw new HttpException('Room ID is required', HttpStatus.BAD_REQUEST);
-        if (!Types.ObjectId.isValid(roomId)) throw new HttpException('Invalid room ID', HttpStatus.BAD_REQUEST);
     }
 
     private async validateParticipants(participantIds: string[], userId: string): Promise<string[]> {

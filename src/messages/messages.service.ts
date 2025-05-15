@@ -26,36 +26,6 @@ export class MessageService {
         private fileService: FileService
     ) {}
 
-   /* async create(dto: CreateMessageDto, userId: string, files: Express.Multer.File[] = [], session?: ClientSession, isMainMessage: boolean = false): Promise<PopulatedMessage> {
-        let thread;
-        if (!isMainMessage) {
-            thread = await this.threadModel.findById(dto.threadId).session(session).exec();
-            if (!thread) throw new NotFoundException('Thread not found');
-        }
-
-        const fileIds = files.length
-            ? await Promise.all(files.map(file => this.fileService.uploadFile(file, session)))
-            : [];
-
-        const message = new this.messageModel({
-            thread: new Types.ObjectId(dto.threadId),
-            sender: new Types.ObjectId(userId),
-            content: dto.content,
-            tags: dto.tags,
-            files: fileIds.map(fileId => new Types.ObjectId(fileId)),
-        });
-
-        const savedMessage = await message.save({ session });
-
-        if (!isMainMessage && thread) {
-            await this.threadModel
-                .updateOne({ _id: thread._id }, { $push: { replies: savedMessage._id } }, { session })
-                .exec();
-        }
-
-        return this.findById(savedMessage._id.toString(), session);
-    }*/
-// messages.service.ts
     async create(dto: CreateMessageDto, userId: string, session?: ClientSession, isMainMessage: boolean = false): Promise<PopulatedMessage> {
         let thread;
         if (!isMainMessage) {
@@ -91,8 +61,6 @@ export class MessageService {
         return this.findById(savedMessage._id.toString(), session);
     }
 
-
-// messages.service.ts
     async update(id: string, dto: UpdateMessageDto, session?: ClientSession): Promise<PopulatedMessage> {
         const message = await this.messageModel.findById(id).session(session).exec();
         if (!message) throw new NotFoundException('Message not found');
